@@ -2,10 +2,16 @@ use std::char;
 
 // draft 1 = 537824
 // draft 2 = 38416
+// draft 3 = 28392
+// draft 4 = 456
 const WORD_LENGTH: usize = 5;
-const ALPHABET: [char; 26] = [
-    'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l',
-    'z', 'x', 'c', 'v', 'b', 'n', 'm',
+// const ALPHABET: [char; 26] = [
+//     'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l',
+//     'z', 'x', 'c', 'v', 'b', 'n', 'm',
+// ];
+const ALPHABET: [char; 22] = [
+    'w', 'e', 'r', 't', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l',
+    'c', 'v', 'b', 'n', 'm',
 ];
 
 enum LetterResult {
@@ -49,6 +55,7 @@ struct Feasible {
     yellows: Vec<char>,
     greens: Vec<char>,
     whites: Vec<char>,
+    must_contain: Vec<char>,
     unsolved_count: usize, // how many letters remain to be solved
 }
 
@@ -62,11 +69,11 @@ impl Feasible {
                 ALPHABET.to_vec(),
                 ALPHABET.to_vec(),
             ],
-            // possible_chars: [ALPHABET.to_vec().clone(); WORD_LENGTH],
             blacks: vec![],
             yellows: vec![],
             greens: vec![],
             whites: vec![],
+            must_contain: vec![],
             unsolved_count: WORD_LENGTH,
         }
     }
@@ -84,7 +91,7 @@ impl Feasible {
                 }
                 LetterResult::YELLOW => {
                     self.possible_chars[c].retain(|&i| i != guess.letters[c]);
-                    self.yellows.push(guess.letters[c])
+                    self.must_contain.push(guess.letters[c])
                 }
             }
         }
@@ -98,21 +105,44 @@ impl Feasible {
             for char1 in self.possible_chars[1].clone() {
                 for char2 in self.possible_chars[2].clone() {
                     for char3 in self.possible_chars[3].clone() {
-                        for char4 in self.possible_chars[4].clone() {
+                        'backdoor: for char4 in self.possible_chars[4].clone() {
                             result = format!("{}{}{}{}{}", char0, char1, char2, char3, char4);
+
+                            for restriction in self.must_contain.clone() {
+                                if !result.contains(restriction) {
+                                    continue 'backdoor;
+                                }
+                            }
+
                             count = count + 1;
-                            println!("{}", result);
+                            print!("{} ", result);
+                            if count % 10 == 0 {
+                                print!("\n");
+                            }
                         }
                     }
                 }
             }
         }
 
-        println!("combination count = {}", count);
+        println!("\ncombination count = {}", count);
     }
 
     fn estimate_combinations(&self) -> usize {
         11_881_376 // TODO: Use possible_chars to estimate how many combinations might remain
+    }
+
+    fn debug_decisions(&self) {
+        for l in ALPHABET {
+            for p in 0..WORD_LENGTH {
+                if self.possible_chars[p].contains(&l) {
+                    print!("{}", l);
+                } else {
+                    print!("{}", ' ');
+                }
+            }
+            print!("{}", '\n');
+        }
     }
 }
 
@@ -172,6 +202,8 @@ fn main() {
         .unwrap(),
     );
 
+    solver.print();
+    // solver.debug_decisions();
     // draft 1 = 537824
     // draft 2 = 38416
 }
