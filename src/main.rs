@@ -1,18 +1,14 @@
 use std::char;
 
-// draft 1 = 537824
-// draft 2 = 38416
-// draft 3 = 28392
-// draft 4 = 456
 const WORD_LENGTH: usize = 5;
-// const ALPHABET: [char; 26] = [
-//     'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l',
-//     'z', 'x', 'c', 'v', 'b', 'n', 'm',
-// ];
-const ALPHABET: [char; 22] = [
-    'w', 'e', 'r', 't', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l',
-    'c', 'v', 'b', 'n', 'm',
+const ALPHABET: [char; 26] = [
+    'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l',
+    'z', 'x', 'c', 'v', 'b', 'n', 'm',
 ];
+// const ALPHABET: [char; 22] = [
+//     'w', 'e', 'r', 't', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'c', 'v',
+//     'b', 'n', 'm',
+// ];
 
 enum LetterResult {
     GREEN,
@@ -24,6 +20,9 @@ struct Guess {
     letters: [char; WORD_LENGTH],
     hints: [LetterResult; WORD_LENGTH],
 }
+
+// TODO: Implement an iterator so you can do
+//       for (letter, hint) in Guess
 
 impl Guess {
     fn new(word: &str, hints: [LetterResult; WORD_LENGTH]) -> Option<Guess> {
@@ -48,33 +47,39 @@ impl Guess {
     }
 }
 
-struct Feasible {
-    // guesses: Vec<Guess>,
-    possible_chars: [Vec<char>; WORD_LENGTH],
-    blacks: Vec<char>,
-    yellows: Vec<char>,
-    greens: Vec<char>,
-    whites: Vec<char>,
-    must_contain: Vec<char>,
-    unsolved_count: usize, // how many letters remain to be solved
+#[derive(Clone)]
+enum Superposition {
+    Known(char),
+    Unknown(Vec<char>),
 }
 
-impl Feasible {
-    fn new() -> Feasible {
-        Feasible {
+fn superposition_drop_state(c: char, target: &mut Superposition) {
+    if let Superposition::Unknown(vec) = target {
+        vec.retain(|&x| x != c);
+        if vec.len() == 1 {
+            let last = vec.pop().unwrap();
+            *target = Superposition::Known(last);
+        }
+    }
+}
+
+#[derive(Clone)]
+struct CombinationStore {
+    possible_chars: [Superposition; WORD_LENGTH],
+    must_contain: Vec<char>,
+}
+
+impl CombinationStore {
+    fn new() -> CombinationStore {
+        CombinationStore {
             possible_chars: [
-                ALPHABET.to_vec(),
-                ALPHABET.to_vec(),
-                ALPHABET.to_vec(),
-                ALPHABET.to_vec(),
-                ALPHABET.to_vec(),
+                Superposition::Unknown(ALPHABET.to_vec()),
+                Superposition::Unknown(ALPHABET.to_vec()),
+                Superposition::Unknown(ALPHABET.to_vec()),
+                Superposition::Unknown(ALPHABET.to_vec()),
+                Superposition::Unknown(ALPHABET.to_vec()),
             ],
-            blacks: vec![],
-            yellows: vec![],
-            greens: vec![],
-            whites: vec![],
             must_contain: vec![],
-            unsolved_count: WORD_LENGTH,
         }
     }
 
@@ -82,15 +87,18 @@ impl Feasible {
         for c in 0..WORD_LENGTH {
             match guess.hints[c] {
                 LetterResult::BLACK => {
-                    for c2 in 0..WORD_LENGTH {
-                        self.possible_chars[c2].retain(|&i| i != guess.letters[c]);
-                    }
+                    // TODO: replace this loop unpacking
+                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[0]);
+                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[1]);
+                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[2]);
+                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[3]);
+                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[4]);
                 }
                 LetterResult::GREEN => {
-                    self.possible_chars[c] = vec![guess.letters[c].clone()];
+                    self.possible_chars[c] = Superposition::Known(guess.letters[c]);
                 }
                 LetterResult::YELLOW => {
-                    self.possible_chars[c].retain(|&i| i != guess.letters[c]);
+                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[c]);
                     self.must_contain.push(guess.letters[c])
                 }
             }
@@ -98,57 +106,71 @@ impl Feasible {
     }
 
     fn print(&self) {
-        let mut result: String;
-        let mut count: usize = 0;
+        for state in &self.possible_chars {
+            match state {
+                Superposition::Known(val) => {
+                    print!("{}", val);
+                }
+                Superposition::Unknown(vec) => {
+                    print!("(");
+                    for val in vec {
+                        print!("{val}");
+                    }
+                    print!(") ");
+                }
+            }
+        }
+        print!("\n");
+    }
+}
 
-        for char0 in self.possible_chars[0].clone() {
-            for char1 in self.possible_chars[1].clone() {
-                for char2 in self.possible_chars[2].clone() {
-                    for char3 in self.possible_chars[3].clone() {
-                        'backdoor: for char4 in self.possible_chars[4].clone() {
-                            result = format!("{}{}{}{}{}", char0, char1, char2, char3, char4);
+fn print_helper(combo: CombinationStore, mut must_include: Vec<char>) {
+    // check if every superposition has collapsed and must_include is empty
 
-                            for restriction in self.must_contain.clone() {
-                                if !result.contains(restriction) {
-                                    continue 'backdoor;
-                                }
-                            }
+    match must_include.pop() {
+        None => {
+            // Exhaust every remaining combination
+            let mut i = 0;
+            while i < WORD_LENGTH && matches!(&combo.possible_chars[i], Superposition::Known(_)) {
+                i += 1;
+            }
 
-                            count = count + 1;
-                            print!("{} ", result);
-                            if count % 10 == 0 {
-                                print!("\n");
-                            }
-                        }
+            // combo.print();
+
+            if i == WORD_LENGTH {
+                combo.print();
+            } else {
+                // collapse at index i
+                if let Superposition::Unknown(vec) = &combo.possible_chars[i] {
+                    for letter in vec {
+                        let mut dummy = combo.clone();
+                        dummy.possible_chars[i] = Superposition::Known(*letter);
+                        print_helper(dummy, vec![]);
                     }
                 }
             }
         }
-
-        println!("\ncombination count = {}", count);
-    }
-
-    fn estimate_combinations(&self) -> usize {
-        11_881_376 // TODO: Use possible_chars to estimate how many combinations might remain
-    }
-
-    fn debug_decisions(&self) {
-        for l in ALPHABET {
-            for p in 0..WORD_LENGTH {
-                if self.possible_chars[p].contains(&l) {
-                    print!("{}", l);
-                } else {
-                    print!("{}", ' ');
+        Some(letter) => {
+            // Find a satisfying position for this letter
+            let mut i = 0;
+            for place in &combo.possible_chars {
+                if let Superposition::Unknown(vec) = place {
+                    if vec.contains(&letter) {
+                        let mut dummy = combo.clone();
+                        dummy.possible_chars[i] = Superposition::Known(letter);
+                        let lol = must_include.clone();
+                        print_helper(dummy, lol);
+                    }
                 }
+                i = i + 1;
             }
-            print!("{}", '\n');
         }
     }
 }
 
 fn main() {
-    // wordle #1516. kefir
-    let mut solver: Feasible = Feasible::new();
+    // wordle #1519. matte
+    let mut solver: CombinationStore = CombinationStore::new();
     solver.add_guess(
         Guess::new(
             "ocean",
@@ -156,6 +178,32 @@ fn main() {
                 LetterResult::BLACK,
                 LetterResult::BLACK,
                 LetterResult::YELLOW,
+                LetterResult::YELLOW,
+                LetterResult::BLACK,
+            ],
+        )
+        .unwrap(),
+    );
+    solver.add_guess(
+        Guess::new(
+            "steak",
+            [
+                LetterResult::BLACK,
+                LetterResult::YELLOW,
+                LetterResult::YELLOW,
+                LetterResult::YELLOW,
+                LetterResult::BLACK,
+            ],
+        )
+        .unwrap(),
+    );
+    solver.add_guess(
+        Guess::new(
+            "heard",
+            [
+                LetterResult::BLACK,
+                LetterResult::YELLOW,
+                LetterResult::YELLOW,
                 LetterResult::BLACK,
                 LetterResult::BLACK,
             ],
@@ -164,12 +212,12 @@ fn main() {
     );
     solver.add_guess(
         Guess::new(
-            "whine",
+            "valet",
             [
                 LetterResult::BLACK,
+                LetterResult::GREEN,
                 LetterResult::BLACK,
                 LetterResult::YELLOW,
-                LetterResult::BLACK,
                 LetterResult::YELLOW,
             ],
         )
@@ -177,32 +225,75 @@ fn main() {
     );
     solver.add_guess(
         Guess::new(
-            "diner",
+            "table",
             [
-                LetterResult::BLACK,
                 LetterResult::YELLOW,
+                LetterResult::GREEN,
                 LetterResult::BLACK,
-                LetterResult::YELLOW,
+                LetterResult::BLACK,
                 LetterResult::GREEN,
             ],
         )
         .unwrap(),
     );
-    solver.add_guess(
-        Guess::new(
-            "stump",
-            [
-                LetterResult::BLACK,
-                LetterResult::BLACK,
-                LetterResult::BLACK,
-                LetterResult::BLACK,
-                LetterResult::BLACK,
-            ],
-        )
-        .unwrap(),
-    );
 
-    solver.print();
+    // wordle #1516. kefir
+    // solver.add_guess(
+    //     Guess::new(
+    //         "ocean",
+    //         [
+    //             LetterResult::BLACK,
+    //             LetterResult::BLACK,
+    //             LetterResult::YELLOW,
+    //             LetterResult::BLACK,
+    //             LetterResult::BLACK,
+    //         ],
+    //     )
+    //     .unwrap(),
+    // );
+    // solver.add_guess(
+    //     Guess::new(
+    //         "whine",
+    //         [
+    //             LetterResult::BLACK,
+    //             LetterResult::BLACK,
+    //             LetterResult::YELLOW,
+    //             LetterResult::BLACK,
+    //             LetterResult::YELLOW,
+    //         ],
+    //     )
+    //     .unwrap(),
+    // );
+    // solver.add_guess(
+    //     Guess::new(
+    //         "diner",
+    //         [
+    //             LetterResult::BLACK,
+    //             LetterResult::YELLOW,
+    //             LetterResult::BLACK,
+    //             LetterResult::YELLOW,
+    //             LetterResult::GREEN,
+    //         ],
+    //     )
+    //     .unwrap(),
+    // );
+    // solver.add_guess(
+    //     Guess::new(
+    //         "stump",
+    //         [
+    //             LetterResult::BLACK,
+    //             LetterResult::BLACK,
+    //             LetterResult::BLACK,
+    //             LetterResult::BLACK,
+    //             LetterResult::BLACK,
+    //         ],
+    //     )
+    //     .unwrap(),
+    // );
+
+    // solver.print();
+    // print_helper(solver, vec!['e', 'i']);
+    print_helper(solver, vec!['t']);
     // solver.debug_decisions();
     // draft 1 = 537824
     // draft 2 = 38416
