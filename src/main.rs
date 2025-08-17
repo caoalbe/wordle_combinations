@@ -39,9 +39,9 @@ impl Guess {
         Some(Guess {
             letters: word
                 .chars()
-                .collect::<Vec<char>>() // collect into Vec<char>
+                .collect::<Vec<char>>()
                 .try_into() // try to convert into [char; WORD_LENGTH]
-                .expect("String must be exactly 5 characters"),
+                .expect(format!("Guess must contain exactly {} characters", WORD_LENGTH).as_str()),
             hints: hints,
         })
     }
@@ -72,27 +72,21 @@ struct CombinationStore {
 impl CombinationStore {
     fn new() -> CombinationStore {
         CombinationStore {
-            possible_chars: [
-                Superposition::Unknown(ALPHABET.to_vec()),
-                Superposition::Unknown(ALPHABET.to_vec()),
-                Superposition::Unknown(ALPHABET.to_vec()),
-                Superposition::Unknown(ALPHABET.to_vec()),
-                Superposition::Unknown(ALPHABET.to_vec()),
-            ],
+            possible_chars: std::array::from_fn::<Superposition, WORD_LENGTH, _>(|_| {
+                Superposition::Unknown(ALPHABET.to_vec())
+            }),
             must_contain: vec![],
         }
     }
 
+    // TODO: Handle double letters (GREEN & BLACK) in one guess
     fn add_guess(&mut self, guess: Guess) {
         for c in 0..WORD_LENGTH {
             match guess.hints[c] {
                 LetterResult::BLACK => {
-                    // TODO: replace this loop unpacking
-                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[0]);
-                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[1]);
-                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[2]);
-                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[3]);
-                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[4]);
+                    for i in 0..WORD_LENGTH {
+                        superposition_drop_state(guess.letters[c], &mut self.possible_chars[i]);
+                    }
                 }
                 LetterResult::GREEN => {
                     self.possible_chars[c] = Superposition::Known(guess.letters[c]);
@@ -116,7 +110,7 @@ impl CombinationStore {
                     for val in vec {
                         print!("{val}");
                     }
-                    print!(") ");
+                    print!(")");
                 }
             }
         }
@@ -135,8 +129,6 @@ fn print_helper(combo: CombinationStore, mut must_include: Vec<char>) {
                 i += 1;
             }
 
-            // combo.print();
-
             if i == WORD_LENGTH {
                 combo.print();
             } else {
@@ -151,18 +143,34 @@ fn print_helper(combo: CombinationStore, mut must_include: Vec<char>) {
             }
         }
         Some(letter) => {
-            // Find a satisfying position for this letter
+            // Find all satisfying combinations for this letter
+            let mut letter_combos = vec![combo.clone()];
+
             let mut i = 0;
             for place in &combo.possible_chars {
                 if let Superposition::Unknown(vec) = place {
                     if vec.contains(&letter) {
-                        let mut dummy = combo.clone();
-                        dummy.possible_chars[i] = Superposition::Known(letter);
-                        let lol = must_include.clone();
-                        print_helper(dummy, lol);
+                        letter_combos = letter_combos
+                            .iter()
+                            .flat_map(|state| {
+                                let mut collapsed = state.clone();
+                                let mut ambiguous = state.clone();
+
+                                collapsed.possible_chars[i] = Superposition::Known(letter);
+                                superposition_drop_state(letter, &mut ambiguous.possible_chars[i]);
+
+                                vec![collapsed, ambiguous]
+                            })
+                            .collect();
                     }
                 }
                 i = i + 1;
+            }
+
+            letter_combos.pop(); // the last one is invalid; since it places the must_include letter nowhere
+
+            for combo in letter_combos {
+                print_helper(combo, must_include.clone());
             }
         }
     }
@@ -237,7 +245,7 @@ fn main() {
         .unwrap(),
     );
 
-    // wordle #1516. kefir
+    // // wordle #1516. kefir
     // solver.add_guess(
     //     Guess::new(
     //         "ocean",
@@ -292,9 +300,7 @@ fn main() {
     // );
 
     // solver.print();
-    // print_helper(solver, vec!['e', 'i']);
+    // print_helper(solver, vec!['i', 'e']);
     print_helper(solver, vec!['t']);
     // solver.debug_decisions();
-    // draft 1 = 537824
-    // draft 2 = 38416
 }
