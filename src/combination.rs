@@ -41,7 +41,6 @@ impl CombinationStore {
                 LetterResult::YELLOW => {
                     superposition_drop_state(guess.letters[c], &mut self.possible_chars[c]);
                     self.push_must_contain(guess.letters[c])
-
                 }
             }
         }
@@ -64,74 +63,77 @@ impl CombinationStore {
         }
         print!("\n");
     }
-}
 
-pub fn print_helper(combo: CombinationStore, mut must_include: Vec<char>) {
-    // check if every superposition has collapsed and must_include is empty
+    pub fn print_possible_combos(&self) {
+        let must_contain_vec = self.must_contain.clone();
+        self.print_possible_combos_helper(must_contain_vec);
+    }
 
-    match must_include.pop() {
-        None => {
-            // Exhaust every remaining combination
-            let mut i = 0;
-            while i < WORD_LENGTH && matches!(&combo.possible_chars[i], Superposition::Known(_)) {
-                i += 1;
-            }
-
-            if i == WORD_LENGTH {
-                combo.print();
-            } else {
-                // collapse at index i
-                if let Superposition::Unknown(vec) = &combo.possible_chars[i] {
-                    for letter in vec {
-                        let mut dummy = combo.clone();
-                        dummy.possible_chars[i] = Superposition::Known(*letter);
-                        print_helper(dummy, vec![]);
-                    }
+    fn print_possible_combos_helper(&self, mut must_include: Vec<char>) {
+        match must_include.pop() {
+            None => {
+                // Exhaust every remaining combination
+                let mut i = 0;
+                while i < WORD_LENGTH && matches!(self.possible_chars[i], Superposition::Known(_)) {
+                    i += 1;
                 }
-            }
-        }
-        Some(letter) => {
-            // Find all satisfying combinations for this letter
-            let mut letter_combos: Vec<CombinationStore> = vec![combo.clone()];
-            let mut i = 0;
 
-            let mut letter_already_placed = false;
-            for place in &combo.possible_chars {
-                match place {
-                    Superposition::Known(to_compare) => {
-                        if to_compare == &letter {
-                            letter_already_placed = true;
-                        }
-                    }
-                    Superposition::Unknown(vec) => {
-                        if vec.contains(&letter) {
-                            letter_combos = letter_combos
-                                .iter()
-                                .flat_map(|state| {
-                                    let mut collapsed = state.clone();
-                                    let mut ambiguous = state.clone();
-
-                                    collapsed.possible_chars[i] = Superposition::Known(letter);
-                                    superposition_drop_state(
-                                        letter,
-                                        &mut ambiguous.possible_chars[i],
-                                    );
-
-                                    vec![collapsed, ambiguous]
-                                })
-                                .collect();
+                if i == WORD_LENGTH {
+                    self.print();
+                } else {
+                    // collapse at index i
+                    if let Superposition::Unknown(vec) = &self.possible_chars[i] {
+                        for letter in vec {
+                            let mut dummy = self.clone();
+                            dummy.possible_chars[i] = Superposition::Known(*letter);
+                            dummy.print_possible_combos_helper(vec![]);
                         }
                     }
                 }
-                i = i + 1;
             }
+            Some(letter) => {
+                // Find all satisfying combinations for this letter
+                let mut letter_combos: Vec<CombinationStore> = vec![self.clone()];
+                let mut i = 0;
 
-            if !letter_already_placed {
-                letter_combos.pop(); // the last one is invalid; since it places the must_include letter nowhere
-            }
+                let mut letter_already_placed = false;
+                for place in &self.possible_chars {
+                    match place {
+                        Superposition::Known(to_compare) => {
+                            if to_compare == &letter {
+                                letter_already_placed = true;
+                            }
+                        }
+                        Superposition::Unknown(vec) => {
+                            if vec.contains(&letter) {
+                                letter_combos = letter_combos
+                                    .iter()
+                                    .flat_map(|state| {
+                                        let mut collapsed = state.clone();
+                                        let mut ambiguous = state.clone();
 
-            for combo in letter_combos {
-                print_helper(combo, must_include.clone());
+                                        collapsed.possible_chars[i] = Superposition::Known(letter);
+                                        superposition_drop_state(
+                                            letter,
+                                            &mut ambiguous.possible_chars[i],
+                                        );
+
+                                        vec![collapsed, ambiguous]
+                                    })
+                                    .collect();
+                            }
+                        }
+                    }
+                    i = i + 1;
+                }
+
+                if !letter_already_placed {
+                    letter_combos.pop(); // the last one is invalid; since it places the must_include letter nowhere
+                }
+
+                for combo in letter_combos {
+                    combo.print_possible_combos_helper(must_include.clone());
+                }
             }
         }
     }

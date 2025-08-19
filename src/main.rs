@@ -1,6 +1,6 @@
 use std::{env, fs};
 use wordle_combinations::{
-    combination::{CombinationStore, print_helper},
+    combination::CombinationStore,
     constants::WORD_LENGTH,
     guess::{Guess, LetterResult},
 };
@@ -52,7 +52,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         reading_text = !reading_text;
     }
 
-    let wasd: Vec<char> = solver.must_contain.clone();
-    print_helper(solver, wasd);
+    solver.print_possible_combos();
     Ok(())
 }
