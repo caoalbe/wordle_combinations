@@ -1,7 +1,9 @@
+use std::char;
+
 use crate::{
     constants::{ALPHABET, WORD_LENGTH},
     guess::{Guess, LetterResult},
-    superposition::{Superposition},
+    superposition::Superposition,
 };
 
 #[derive(Clone)]
@@ -27,20 +29,20 @@ impl CombinationStore {
     }
 
     pub fn add_guess(&mut self, guess: Guess) {
-        for c in 0..WORD_LENGTH {
-            match guess.hints[c] {
+        for (c, (letter, hint)) in guess.iter().enumerate() {
+            match hint {
                 LetterResult::BLACK => {
                     for i in 0..WORD_LENGTH {
-                        self.possible_chars[i].drop_state(guess.letters[c]);
+                        self.possible_chars[i].drop_state(letter);
                     }
                 }
                 LetterResult::GREEN => {
-                    self.possible_chars[c] = Superposition::Known(guess.letters[c]);
-                    self.push_must_contain(guess.letters[c])
+                    self.possible_chars[c] = Superposition::Known(letter);
+                    self.push_must_contain(letter)
                 }
                 LetterResult::YELLOW => {
-                    self.possible_chars[c].drop_state(guess.letters[c]);
-                    self.push_must_contain(guess.letters[c])
+                    self.possible_chars[c].drop_state(letter);
+                    self.push_must_contain(letter)
                 }
             }
         }
