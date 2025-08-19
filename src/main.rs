@@ -23,8 +23,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut reading_text: bool = true; // true -> reading text, false -> reading colour
 
     let mut word: &str = "";
-    for line in hints_string {
-        if line.starts_with("//") {
+    for mut line in hints_string {
+        line = line.trim_start();
+        if line.starts_with("//") || line == "" {
             continue;
         }
 
