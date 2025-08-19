@@ -1,7 +1,7 @@
 use crate::{
     constants::{ALPHABET, WORD_LENGTH},
     guess::{Guess, LetterResult},
-    superposition::{Superposition, superposition_drop_state},
+    superposition::{Superposition},
 };
 
 #[derive(Clone)]
@@ -31,7 +31,7 @@ impl CombinationStore {
             match guess.hints[c] {
                 LetterResult::BLACK => {
                     for i in 0..WORD_LENGTH {
-                        superposition_drop_state(guess.letters[c], &mut self.possible_chars[i]);
+                        self.possible_chars[i].drop_state(guess.letters[c]);
                     }
                 }
                 LetterResult::GREEN => {
@@ -39,7 +39,7 @@ impl CombinationStore {
                     self.push_must_contain(guess.letters[c])
                 }
                 LetterResult::YELLOW => {
-                    superposition_drop_state(guess.letters[c], &mut self.possible_chars[c]);
+                    self.possible_chars[c].drop_state(guess.letters[c]);
                     self.push_must_contain(guess.letters[c])
                 }
             }
@@ -113,10 +113,7 @@ impl CombinationStore {
                                         let mut ambiguous = state.clone();
 
                                         collapsed.possible_chars[i] = Superposition::Known(letter);
-                                        superposition_drop_state(
-                                            letter,
-                                            &mut ambiguous.possible_chars[i],
-                                        );
+                                        ambiguous.possible_chars[i].drop_state(letter);
 
                                         vec![collapsed, ambiguous]
                                     })
