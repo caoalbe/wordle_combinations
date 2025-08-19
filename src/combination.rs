@@ -20,7 +20,12 @@ impl CombinationStore {
         }
     }
 
-    // TODO: Handle double letters (GREEN & BLACK) in one guess
+    fn push_must_contain(&mut self, new_letter: char) {
+        if !self.must_contain.contains(&new_letter) {
+            self.must_contain.push(new_letter);
+        }
+    }
+
     pub fn add_guess(&mut self, guess: Guess) {
         for c in 0..WORD_LENGTH {
             match guess.hints[c] {
@@ -31,11 +36,12 @@ impl CombinationStore {
                 }
                 LetterResult::GREEN => {
                     self.possible_chars[c] = Superposition::Known(guess.letters[c]);
-                    self.must_contain.push(guess.letters[c])
+                    self.push_must_contain(guess.letters[c])
                 }
                 LetterResult::YELLOW => {
                     superposition_drop_state(guess.letters[c], &mut self.possible_chars[c]);
-                    self.must_contain.push(guess.letters[c])
+                    self.push_must_contain(guess.letters[c])
+
                 }
             }
         }
