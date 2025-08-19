@@ -31,6 +31,7 @@ impl CombinationStore {
                 }
                 LetterResult::GREEN => {
                     self.possible_chars[c] = Superposition::Known(guess.letters[c]);
+                    self.must_contain.push(guess.letters[c])
                 }
                 LetterResult::YELLOW => {
                     superposition_drop_state(guess.letters[c], &mut self.possible_chars[c]);
