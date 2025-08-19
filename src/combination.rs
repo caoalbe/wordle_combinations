@@ -85,30 +85,43 @@ pub fn print_helper(combo: CombinationStore, mut must_include: Vec<char>) {
         }
         Some(letter) => {
             // Find all satisfying combinations for this letter
-            let mut letter_combos = vec![combo.clone()];
-
+            let mut letter_combos: Vec<CombinationStore> = vec![combo.clone()];
             let mut i = 0;
+
+            let mut letter_already_placed = false;
             for place in &combo.possible_chars {
-                if let Superposition::Unknown(vec) = place {
-                    if vec.contains(&letter) {
-                        letter_combos = letter_combos
-                            .iter()
-                            .flat_map(|state| {
-                                let mut collapsed = state.clone();
-                                let mut ambiguous = state.clone();
+                match place {
+                    Superposition::Known(to_compare) => {
+                        if to_compare == &letter {
+                            letter_already_placed = true;
+                        }
+                    }
+                    Superposition::Unknown(vec) => {
+                        if vec.contains(&letter) {
+                            letter_combos = letter_combos
+                                .iter()
+                                .flat_map(|state| {
+                                    let mut collapsed = state.clone();
+                                    let mut ambiguous = state.clone();
 
-                                collapsed.possible_chars[i] = Superposition::Known(letter);
-                                superposition_drop_state(letter, &mut ambiguous.possible_chars[i]);
+                                    collapsed.possible_chars[i] = Superposition::Known(letter);
+                                    superposition_drop_state(
+                                        letter,
+                                        &mut ambiguous.possible_chars[i],
+                                    );
 
-                                vec![collapsed, ambiguous]
-                            })
-                            .collect();
+                                    vec![collapsed, ambiguous]
+                                })
+                                .collect();
+                        }
                     }
                 }
                 i = i + 1;
             }
 
-            letter_combos.pop(); // the last one is invalid; since it places the must_include letter nowhere
+            if !letter_already_placed {
+                letter_combos.pop(); // the last one is invalid; since it places the must_include letter nowhere
+            }
 
             for combo in letter_combos {
                 print_helper(combo, must_include.clone());
