@@ -1,130 +1,57 @@
-use wordle_combinations::{combination::{CombinationStore, print_helper}, guess::{Guess, LetterResult}};
+use std::{env, fs};
+use wordle_combinations::{
+    combination::{CombinationStore, print_helper},
+    constants::WORD_LENGTH,
+    guess::{Guess, LetterResult},
+};
 
-fn main() {
-    // wordle #1519. matte
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() < 2 {
+        return Err("Insufficient arguments".into());
+    }
+    let input_file_path: &String = &args[1];
+
+    let hints_string = fs::read_to_string(input_file_path)
+        .expect(format!("Error reading {}.", input_file_path).as_str());
+
+    // Parse hints_string into a CombinationStore
     let mut solver: CombinationStore = CombinationStore::new();
-    solver.add_guess(
-        Guess::new(
-            "ocean",
-            [
-                LetterResult::BLACK,
-                LetterResult::BLACK,
-                LetterResult::YELLOW,
-                LetterResult::YELLOW,
-                LetterResult::BLACK,
-            ],
-        )
-        .unwrap(),
-    );
-    solver.add_guess(
-        Guess::new(
-            "steak",
-            [
-                LetterResult::BLACK,
-                LetterResult::YELLOW,
-                LetterResult::YELLOW,
-                LetterResult::YELLOW,
-                LetterResult::BLACK,
-            ],
-        )
-        .unwrap(),
-    );
-    solver.add_guess(
-        Guess::new(
-            "heard",
-            [
-                LetterResult::BLACK,
-                LetterResult::YELLOW,
-                LetterResult::YELLOW,
-                LetterResult::BLACK,
-                LetterResult::BLACK,
-            ],
-        )
-        .unwrap(),
-    );
-    solver.add_guess(
-        Guess::new(
-            "valet",
-            [
-                LetterResult::BLACK,
-                LetterResult::GREEN,
-                LetterResult::BLACK,
-                LetterResult::YELLOW,
-                LetterResult::YELLOW,
-            ],
-        )
-        .unwrap(),
-    );
-    solver.add_guess(
-        Guess::new(
-            "table",
-            [
-                LetterResult::YELLOW,
-                LetterResult::GREEN,
-                LetterResult::BLACK,
-                LetterResult::BLACK,
-                LetterResult::GREEN,
-            ],
-        )
-        .unwrap(),
-    );
+    let hints_string: Vec<&str> = hints_string.split("\n").collect();
 
-    // // wordle #1516. kefir
-    // solver.add_guess(
-    //     Guess::new(
-    //         "ocean",
-    //         [
-    //             LetterResult::BLACK,
-    //             LetterResult::BLACK,
-    //             LetterResult::YELLOW,
-    //             LetterResult::BLACK,
-    //             LetterResult::BLACK,
-    //         ],
-    //     )
-    //     .unwrap(),
-    // );
-    // solver.add_guess(
-    //     Guess::new(
-    //         "whine",
-    //         [
-    //             LetterResult::BLACK,
-    //             LetterResult::BLACK,
-    //             LetterResult::YELLOW,
-    //             LetterResult::BLACK,
-    //             LetterResult::YELLOW,
-    //         ],
-    //     )
-    //     .unwrap(),
-    // );
-    // solver.add_guess(
-    //     Guess::new(
-    //         "diner",
-    //         [
-    //             LetterResult::BLACK,
-    //             LetterResult::YELLOW,
-    //             LetterResult::BLACK,
-    //             LetterResult::YELLOW,
-    //             LetterResult::GREEN,
-    //         ],
-    //     )
-    //     .unwrap(),
-    // );
-    // solver.add_guess(
-    //     Guess::new(
-    //         "stump",
-    //         [
-    //             LetterResult::BLACK,
-    //             LetterResult::BLACK,
-    //             LetterResult::BLACK,
-    //             LetterResult::BLACK,
-    //             LetterResult::BLACK,
-    //         ],
-    //     )
-    //     .unwrap(),
-    // );
+    let mut reading_text: bool = true; // true -> reading text, false -> reading colour
 
-    // solver.print();
-    // print_helper(solver, vec!['i', 'e']);
-    print_helper(solver, vec!['t']);
-    // solver.debug_decisions();
+    let mut word: &str = "";
+    for line in hints_string {
+        if line.starts_with("//") {
+            continue;
+        }
+
+        if reading_text {
+            word = line;
+        } else {
+            let hints: [LetterResult; WORD_LENGTH] = line
+                .chars()
+                .map(|colour| match colour {
+                    '.' => LetterResult::BLACK,
+                    '?' => LetterResult::YELLOW,
+                    '!' => LetterResult::GREEN,
+                    _ => {
+                        println!("invalid character");
+                        LetterResult::BLACK
+                    }
+                })
+                .collect::<Vec<LetterResult>>()
+                .try_into()
+                .unwrap_or_else(|_| panic!("Must include {} hints.", WORD_LENGTH));
+
+            solver.add_guess(Guess::new(word, hints).unwrap());
+        }
+        reading_text = !reading_text;
+    }
+
+    let wasd: Vec<char> = solver.must_contain.clone();
+    print_helper(solver, wasd);
+    Ok(())
 }
