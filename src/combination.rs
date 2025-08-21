@@ -67,71 +67,86 @@ impl CombinationStore {
     }
 
     pub fn print_possible_combos(&self) {
-        let must_contain_vec = self.must_contain.clone();
-        self.print_possible_combos_helper(must_contain_vec);
+        let patterns: Vec<CombinationStore> = self.generate_patterns();
+
+        for pattern in patterns {
+            CombinationStore::print_pattern_combos_helper(&pattern);
+        }
     }
 
-    fn print_possible_combos_helper(&self, mut must_include: Vec<char>) {
-        match must_include.pop() {
-            None => {
-                // Exhaust every remaining combination
-                let mut i = 0;
-                while i < WORD_LENGTH && matches!(self.possible_chars[i], Superposition::Known(_)) {
-                    i += 1;
-                }
+    fn generate_patterns(&self) -> Vec<CombinationStore> {
+        // Generate an exhaustive list of patterns which are distinct,
+        // and satisfy all possible placements of yellow letters
+        let mut must_contain_vec = self.must_contain.clone();
 
-                if i == WORD_LENGTH {
-                    self.print();
-                } else {
-                    // collapse at index i
-                    if let Superposition::Unknown(vec) = &self.possible_chars[i] {
-                        for letter in vec {
-                            let mut dummy = self.clone();
-                            dummy.possible_chars[i] = Superposition::Known(*letter);
-                            dummy.print_possible_combos_helper(vec![]);
-                        }
-                    }
-                }
-            }
-            Some(letter) => {
-                // Find all satisfying combinations for this letter
-                let mut letter_combos: Vec<CombinationStore> = vec![self.clone()];
-                let mut i = 0;
-
-                let mut letter_already_placed = false;
-                for place in &self.possible_chars {
-                    match place {
-                        Superposition::Known(to_compare) => {
-                            if to_compare == &letter {
-                                letter_already_placed = true;
+        let mut patterns: Vec<CombinationStore> = vec![self.clone()];
+        while let Some(letter) = must_contain_vec.pop() {
+            // Exhaust every remaining combination
+            patterns = patterns
+                .iter()
+                .cloned()
+                .flat_map(|p: CombinationStore| {
+                    let mut partial_pattern: Vec<CombinationStore> = vec![p.clone()];
+                    let mut letter_is_green: bool = false;
+                    for (i, place) in p.possible_chars.iter().enumerate() {
+                        match place {
+                            Superposition::Known(to_compare) => {
+                                if to_compare == &letter {
+                                    letter_is_green = true;
+                                }
                             }
-                        }
-                        Superposition::Unknown(vec) => {
-                            if vec.contains(&letter) {
-                                letter_combos = letter_combos
-                                    .iter()
-                                    .flat_map(|state| {
-                                        let mut collapsed = state.clone();
-                                        let mut ambiguous = state.clone();
+                            Superposition::Unknown(vec) => {
+                                if vec.contains(&letter) {
+                                    partial_pattern = partial_pattern
+                                        .iter()
+                                        .flat_map(|state| {
+                                            let mut collapsed = state.clone();
+                                            let mut ambiguous = state.clone();
 
-                                        collapsed.possible_chars[i] = Superposition::Known(letter);
-                                        ambiguous.possible_chars[i].drop_state(letter);
+                                            collapsed.possible_chars[i] =
+                                                Superposition::Known(letter);
+                                            ambiguous.possible_chars[i].drop_state(letter);
 
-                                        vec![collapsed, ambiguous]
-                                    })
-                                    .collect();
+                                            vec![collapsed, ambiguous]
+                                        })
+                                        .collect();
+                                }
                             }
                         }
                     }
-                    i = i + 1;
-                }
 
-                if !letter_already_placed {
-                    letter_combos.pop(); // the last one is invalid; since it places the must_include letter nowhere
-                }
+                    if !letter_is_green {
+                        // Note that the last pattern is one where
+                        // <letter> is selected in none of the unknown positions
 
-                for combo in letter_combos {
-                    combo.print_possible_combos_helper(must_include.clone());
+                        // Naturally, this pattern is valid iff
+                        // <letter> is already in a known position
+                        partial_pattern.pop();
+                    }
+
+                    partial_pattern
+                })
+                .collect();
+        }
+        patterns
+    }
+
+    fn print_pattern_combos_helper(pattern: &CombinationStore) {
+        // Exhaust every remaining combination
+        let mut i = 0;
+        while i < WORD_LENGTH && matches!(pattern.possible_chars[i], Superposition::Known(_)) {
+            i += 1;
+        }
+
+        if i == WORD_LENGTH {
+            pattern.print();
+        } else {
+            // collapse at index i
+            if let Superposition::Unknown(vec) = &pattern.possible_chars[i] {
+                for letter in vec {
+                    let mut dummy = pattern.clone();
+                    dummy.possible_chars[i] = Superposition::Known(*letter);
+                    CombinationStore::print_pattern_combos_helper(&dummy);
                 }
             }
         }
